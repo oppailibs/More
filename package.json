@@ -1,0 +1,19 @@
+{
+  "name": "bads",
+  "version": "1.0.0",
+  "description": "emboooh",
+  "main": "index.js",
+  "scripts": {
+     "obf": "javascript-obfuscator index.js --output _worker.js --compact true --control-flow-flattening true --control-flow-flattening-threshold 1 --dead-code-injection true --dead-code-injection-threshold 1 --string-array true --string-array-encoding 'rc4' --string-array-threshold 1 --transform-object-keys true --unicode-escape-sequence true"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oppailibs/bads.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/oppailibs/bads/issues"
+  },
+  "homepage": "https://github.com/oppailibs/bads#readme"
+}

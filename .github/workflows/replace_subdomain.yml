@@ -1,0 +1,60 @@
+name: Replace Subdomain Weekly
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'  # Jalankan setiap minggu pada pukul 00:00 UTC pada hari Minggu
+  workflow_dispatch:  # Bisa dijalankan manual
+
+jobs:
+  replace-subdomain:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+
+      - name: Run Python script to replace subdomain
+        run: python replace_subdomain.py
+
+      - name: Display updated files
+        run: |
+          echo "=== wrangler.toml ==="
+          cat wrangler.toml || echo "File not found"
+          echo "=== js/_worker.js ==="
+          cat js/_worker.js || echo "File not found"
+          for file in index.html domain/zifxoyfpuf0uf0ycphcoyf0684wd.html domain/xhamster.html domain/bmkg.html domain/ndeso.html domain/ndeso-xyz.html domain/kere.html domain/cepu.html domain/turah.html domain/najah.html domain/cloudproxyip.html; do
+            echo "=== $file ==="
+            cat "$file" || echo "File not found"
+          done
+          echo "=== subdomain.yml ==="
+          cat subdomain.yml || echo "File not found"
+
+      - name: Check if files are updated
+        run: |
+          echo "Checking if subdomain replacement is successful..."
+          current_subdomain=$(yq '.subdomain' subdomain.yml)
+          for file in wrangler.toml js/_worker.js index.html domain/zifxoyfpuf0uf0ycphcoyf0684wd.html domain/xhamster.html domain/bmkg.html domain/ndeso.html domain/ndeso-xyz.html domain/kere.html domain/cepu.html domain/turah.html domain/najah.html domain/cloudproxyip.html; do
+            if ! grep -q "$current_subdomain" "$file"; then
+              echo "$file updated successfully"
+            else
+              echo "$file not updated"
+            fi
+          done
+
+      - name: Commit changes to GitHub
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git add wrangler.toml js/_worker.js index.html domain/zifxoyfpuf0uf0ycphcoyf0684wd.html domain/xhamster.html domain/bmkg.html domain/ndeso.html domain/ndeso-xyz.html domain/kere.html domain/cepu.html domain/turah.html domain/najah.html domain/cloudproxyip.html subdomain.yml
+          git commit -m "Update subdomain to $(yq '.subdomain' subdomain.yml)"
+          git push

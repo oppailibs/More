@@ -1,0 +1,54 @@
+name: 🌍 Update Proxy IP 🌍
+
+on:
+  schedule:
+    - cron: "0 */4 * * *"  # Auto run setiap 4 jam sekali
+  workflow_dispatch:  # Bisa dijalankan manual dari GitHub UI
+
+jobs:
+  update-proxies:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests
+
+    - name: Debug check proxyip.txt
+      run: cat proxyip.txt || echo "proxyip.txt tidak ditemukan atau kosong"
+
+    - name: 🌍 Update Proxy IP 🌍
+      env:
+        IP_FILE: 'proxyip.txt'
+        API_URL: 'https://proxy.ndeso.xyz/check?ip={ip}:{port}'
+      run: python update_proxy.py
+
+    - name: Ensure update_proxyip.txt exists
+      run: |
+        if [ -s "update_proxyip.txt" ]; then
+          echo "File update_proxyip.txt has content."
+        else
+          echo "File update_proxyip.txt is empty or not found!"
+          exit 1
+        fi
+
+    - name: Commit and push changes
+      run: |
+        git config --local user.name "github-actions[bot]"
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git add update_proxyip.txt error.txt
+        if git diff --cached --exit-code; then
+          echo "No changes to commit"
+        else
+          git commit -m "Update proxy IP status"
+          git push
+        fi
