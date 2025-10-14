@@ -1,15 +1,4 @@
-name = "cfox" # todo
+name = "cwox" # todo
 main = "_worker.js"
 workers_dev = true
 compatibility_date = "2024-03-20"
-
-
-[[routes]]
-pattern = "cfox.aesx.my.id"
-custom_domain = true
-[[routes]]
-pattern = "ava.game.naver.com.cfox.aesx.my.id"
-custom_domain = true
-[[routes]]
-pattern = "support.zoom.us.cfox.aesx.my.id"
-custom_domain = true
