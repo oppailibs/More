@@ -1,8 +1,8 @@
 import { connect } from "cloudflare:sockets";
 
 const proxyListURL = 'https://raw.githubusercontent.com/FoolVPN-ID/Nautica/refs/heads/main/proxyList.txt';
-const pagehost = '/'
-const namaWeb = 'FREE PROXY LIFETIME'
+const pagehost = '/';
+const namaWeb = 'FREE PROXY LIFETIME';
 
 // Global Variables
 let cachedProxyList = [];
@@ -77,7 +77,7 @@ export default {
       ctx.waitUntil(
         (async function periodicUpdate() {
           await updateProxies();
-          setInterval(updateProxies, 60000*10); // Setiap 60 detik
+          setInterval(updateProxies, 60000); // Setiap 60 detik
         })()
       );
 
