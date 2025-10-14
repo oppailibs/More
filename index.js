@@ -1,33 +1,135 @@
 import { connect } from "cloudflare:sockets";
 
+const proxyListURL = 'https://raw.githubusercontent.com/FoolVPN-ID/Nautica/refs/heads/main/proxyList.txt';
+const pagehost = '/';
+const namaWeb = 'FREE PROXY LIFETIME';
+
 // Global Variables
+let cachedProxyList = [];
 let proxyIP = "";
 
 // Constants
 const WS_READY_STATE_OPEN = 1;
 const WS_READY_STATE_CLOSING = 2;
 
+async function getProxyList(forceReload = false) {
+  if (!cachedProxyList.length || forceReload) {
+    if (!proxyListURL) {
+      throw new Error("No Proxy List URL Provided!");
+    }
+
+    const proxyBank = await fetch(proxyListURL);
+    if (proxyBank.status === 200) {
+      const proxyString = ((await proxyBank.text()) || "").split("\n").filter(Boolean);
+      cachedProxyList = proxyString
+        .map((entry) => {
+          const [proxyIP, proxyPort, country, org] = entry.split(",");
+          return {
+            proxyIP: proxyIP || "Unknown",
+            proxyPort: proxyPort || "Unknown",
+            country: country.toUpperCase() || "Unknown",
+            org: org || "Unknown Org",
+          };
+        })
+        .filter(Boolean);
+    }
+  }
+
+  return cachedProxyList;
+}
+
+async function reverseProxy(request, target) {
+  const targetUrl = new URL(request.url);
+  targetUrl.hostname = target;
+
+  const modifiedRequest = new Request(targetUrl, request);
+  modifiedRequest.headers.set("X-Forwarded-Host", request.headers.get("Host"));
+
+  const response = await fetch(modifiedRequest);
+  const newResponse = new Response(response.body, response);
+  newResponse.headers.set("X-Proxied-By", "Cloudflare Worker");
+
+  return newResponse;
+}
 
 export default {
   async fetch(request, env, ctx) {
     try {
       const url = new URL(request.url);
       const upgradeHeader = request.headers.get("Upgrade");
-      
-      // Handle IP check
+      // Map untuk menyimpan proxy per country code
+      const proxyState = new Map();
+
+      // Fungsi untuk memperbarui proxy setiap menit
+      async function updateProxies() {
+        const proxies = await getProxyList(env);
+        const groupedProxies = groupBy(proxies, "country");
+
+        for (const [countryCode, proxies] of Object.entries(groupedProxies)) {
+          const randomIndex = Math.floor(Math.random() * proxies.length);
+          proxyState.set(countryCode, proxies[randomIndex]);
+        }
+
+        console.log("Proxy list updated:", Array.from(proxyState.entries()));
+      }
+
+      // Jalankan pembaruan proxy setiap menit
+      ctx.waitUntil(
+        (async function periodicUpdate() {
+          await updateProxies();
+          setInterval(updateProxies, 60000); // Setiap 60 detik
+        })()
+      );
+
       if (upgradeHeader === "websocket") {
-        // Match path dengan format ip:port atau ip=port url.pathname.match(/^\/(.+[:=-]\d+)$/);
-        const ipPortMatch = url.pathname.match(/^\/(.+[:=-]\d+)$/);
+        // Match path dengan format /Free-CF-Proxy/CC atau /Free-CF-Proxy/CCangka
+        const pathMatch = url.pathname.match(/^\/Free-CF-Proxy-([A-Z]{2})(\d+)?$/);
+        if (pathMatch) {
+          const countryCode = pathMatch[1];
+          const index = pathMatch[2] ? parseInt(pathMatch[2], 10) - 1 : null;
+          console.log(`Country Code: ${countryCode}, Index: ${index}`);
+          const proxies = await getProxyList(env);
+          const filteredProxies = proxies.filter((proxy) => proxy.country === countryCode);
+          if (filteredProxies.length === 0) {
+            return new Response(`No proxies available for country: ${countryCode}`, { status: 404 });
+          }
+          // Lanjutkan proses koneksi WebSocket
+          let selectedProxy;
+
+          if (index === null) {
+            // Ambil proxy acak dari state jika ada
+            selectedProxy = proxyState.get(countryCode) || filteredProxies[0];
+          } else if (index < 0 || index >= filteredProxies.length) {
+            return new Response(`Index ${index + 1} out of bounds. Only ${filteredProxies.length} proxies available for ${countryCode}.`,{ status: 400 }
+            );
+          } else {
+            selectedProxy = filteredProxies[index];
+          }
+
+          proxyIP = `${selectedProxy.proxyIP}:${selectedProxy.proxyPort}`;
+          console.log(`Selected Proxy: ${proxyIP}`);
+          return await websockerHandler(request);
+        }
+
+        // Match path dengan format ip:port atau ip=port
+        const ipPortMatch = url.pathname.match(/^\/Free-CF-Proxy-(.+[:=-]\d+)$/);
 
         if (ipPortMatch) {
           proxyIP = ipPortMatch[1].replace(/[=:-]/, ":"); // Standarisasi menjadi ip:port
           console.log(`Direct Proxy IP: ${proxyIP}`);
           return await websockerHandler(request, proxyIP);
         }
+        
+        switch(url.pathname){
+          case '/api/proxy':
+            return new Response(JSON.stringify(proxyState), {
+              headers: { "Content-Type": "application/json" },
+            });
+            break;
+        }
+        return new Response("hello dunia!");
       }
-      let configs = "Hello Dunia!!";
-      return new Response(configs);
-    } catch (err) {
+    }catch(err) {
       return new Response(`An error occurred: ${err.toString()}`, {
         status: 500,
       });
@@ -35,6 +137,12 @@ export default {
   },
 };
 
+function groupBy(array, key) {
+  return array.reduce((result, currentValue) => {
+    (result[currentValue[key]] = result[currentValue[key]] || []).push(currentValue);
+    return result;
+  }, {});
+}
 
 async function websockerHandler(request) {
   const webSocketPair = new WebSocketPair();
@@ -74,14 +182,14 @@ async function websockerHandler(request) {
           const protocol = await protocolSniffer(chunk);
           let protocolHeader;
 
-          if (protocol === "Trojan") {
-            protocolHeader = parseTrojanHeader(chunk);
-          } else if (protocol === "VLESS") {
-            protocolHeader = parseVlessHeader(chunk);
-          } else if (protocol === "Shadowsocks") {
-            protocolHeader = parseShadowsocksHeader(chunk);
+          if (protocol === "TMain") {
+            protocolHeader = parseTJanHeader(chunk);
+          } else if (protocol === "VLMain") {
+            protocolHeader = parseVLHeader(chunk);
+          } else if (protocol === "SMain") {
+            protocolHeader = parseSSHeader(chunk);
           } else {
-            parseVmessHeader(chunk);
+            parseVMHeader(chunk);
             throw new Error("Unknown Protocol!");
           }
 
@@ -137,11 +245,11 @@ async function websockerHandler(request) {
 
 async function protocolSniffer(buffer) {
   if (buffer.byteLength >= 62) {
-    const trojanDelimiter = new Uint8Array(buffer.slice(56, 60));
-    if (trojanDelimiter[0] === 0x0d && trojanDelimiter[1] === 0x0a) {
-      if (trojanDelimiter[2] === 0x01 || trojanDelimiter[2] === 0x03 || trojanDelimiter[2] === 0x7f) {
-        if (trojanDelimiter[3] === 0x01 || trojanDelimiter[3] === 0x03 || trojanDelimiter[3] === 0x04) {
-          return "Trojan";
+    const toDelimiter = new Uint8Array(buffer.slice(56, 60));
+    if (toDelimiter[0] === 0x0d && toDelimiter[1] === 0x0a) {
+      if (toDelimiter[2] === 0x01 || toDelimiter[2] === 0x03 || toDelimiter[2] === 0x7f) {
+        if (toDelimiter[3] === 0x01 || toDelimiter[3] === 0x03 || toDelimiter[3] === 0x04) {
+          return "TMain";
         }
       }
     }
@@ -152,10 +260,10 @@ async function protocolSniffer(buffer) {
 const vlessDelimiter = new Uint8Array(buffer.slice(1, 17));
   // Hanya mendukung UUID v4
   if (arrayBufferToHex(vlessDelimiter).match(/^\w{8}\w{4}4\w{3}[89ab]\w{3}\w{12}$/)) {
-    return "VLESS";
+    return "VLMain";
   }
 
-  return "Shadowsocks"; // default
+  return "SMain"; // default
 }
 
 async function handleTCPOutBound(
@@ -244,11 +352,11 @@ function makeReadableWebSocketStream(webSocketServer, earlyDataHeader, log) {
   return stream;
 }
 
-function parseVmessHeader(vmessBuffer) {
+function parseVMHeader(vmBuffer) {
   // https://xtls.github.io/development/protocols/vmess.html#%E6%8C%87%E4%BB%A4%E9%83%A8%E5%88%86
 }
 
-function parseShadowsocksHeader(ssBuffer) {
+function parseSSHeader(ssBuffer) {
   const view = new DataView(ssBuffer);
 
   const addressType = view.getUint8(0);
@@ -304,13 +412,13 @@ function parseShadowsocksHeader(ssBuffer) {
   };
 }
 
-function parseVlessHeader(vlessBuffer) {
-  const version = new Uint8Array(vlessBuffer.slice(0, 1));
+function parseVLHeader(vlBuffer) {
+  const version = new Uint8Array(vlBuffer.slice(0, 1));
   let isUDP = false;
 
-  const optLength = new Uint8Array(vlessBuffer.slice(17, 18))[0];
+  const optLength = new Uint8Array(vlBuffer.slice(17, 18))[0];
 
-  const cmd = new Uint8Array(vlessBuffer.slice(18 + optLength, 18 + optLength + 1))[0];
+  const cmd = new Uint8Array(vlBuffer.slice(18 + optLength, 18 + optLength + 1))[0];
   if (cmd === 1) {
   } else if (cmd === 2) {
     isUDP = true;
@@ -321,11 +429,11 @@ function parseVlessHeader(vlessBuffer) {
     };
   }
   const portIndex = 18 + optLength + 1;
-  const portBuffer = vlessBuffer.slice(portIndex, portIndex + 2);
+  const portBuffer = vlBuffer.slice(portIndex, portIndex + 2);
   const portRemote = new DataView(portBuffer).getUint16(0);
 
   let addressIndex = portIndex + 2;
-  const addressBuffer = new Uint8Array(vlessBuffer.slice(addressIndex, addressIndex + 1));
+  const addressBuffer = new Uint8Array(vlBuffer.slice(addressIndex, addressIndex + 1));
 
   const addressType = addressBuffer[0];
   let addressLength = 0;
@@ -334,16 +442,16 @@ function parseVlessHeader(vlessBuffer) {
   switch (addressType) {
     case 1: // For IPv4
       addressLength = 4;
-      addressValue = new Uint8Array(vlessBuffer.slice(addressValueIndex, addressValueIndex + addressLength)).join(".");
+      addressValue = new Uint8Array(vlBuffer.slice(addressValueIndex, addressValueIndex + addressLength)).join(".");
       break;
     case 2: // For Domain
-      addressLength = new Uint8Array(vlessBuffer.slice(addressValueIndex, addressValueIndex + 1))[0];
+      addressLength = new Uint8Array(vlBuffer.slice(addressValueIndex, addressValueIndex + 1))[0];
       addressValueIndex += 1;
-      addressValue = new TextDecoder().decode(vlessBuffer.slice(addressValueIndex, addressValueIndex + addressLength));
+      addressValue = new TextDecoder().decode(vlBuffer.slice(addressValueIndex, addressValueIndex + addressLength));
       break;
     case 3: // For IPv6
       addressLength = 16;
-      const dataView = new DataView(vlessBuffer.slice(addressValueIndex, addressValueIndex + addressLength));
+      const dataView = new DataView(vlBuffer.slice(addressValueIndex, addressValueIndex + addressLength));
       const ipv6 = [];
       for (let i = 0; i < 8; i++) {
         ipv6.push(dataView.getUint16(i * 2).toString(16));
@@ -369,13 +477,13 @@ function parseVlessHeader(vlessBuffer) {
     addressType: addressType,
     portRemote: portRemote,
     rawDataIndex: addressValueIndex + addressLength,
-    rawClientData: vlessBuffer.slice(addressValueIndex + addressLength),
+    rawClientData: vlBuffer.slice(addressValueIndex + addressLength),
     version: new Uint8Array([version[0], 0]),
     isUDP: isUDP,
   };
 }
 
-function parseTrojanHeader(buffer) {
+function parseTJanHeader(buffer) {
   const socks5DataBuffer = buffer.slice(58);
   if (socks5DataBuffer.byteLength < 6) {
     return {
@@ -566,4 +674,29 @@ function safeCloseWebSocket(socket) {
   } catch (error) {
     console.error("safeCloseWebSocket error", error);
   }
+}
+// Fungsi untuk mengonversi countryCode menjadi emoji bendera
+
+function generateUUIDv4() {
+  const randomValues = crypto.getRandomValues(new Uint8Array(16));
+  randomValues[6] = (randomValues[6] & 0x0f) | 0x40;
+  randomValues[8] = (randomValues[8] & 0x3f) | 0x80;
+  return [
+    randomValues[0].toString(16).padStart(2, '0'),
+    randomValues[1].toString(16).padStart(2, '0'),
+    randomValues[2].toString(16).padStart(2, '0'),
+    randomValues[3].toString(16).padStart(2, '0'),
+    randomValues[4].toString(16).padStart(2, '0'),
+    randomValues[5].toString(16).padStart(2, '0'),
+    randomValues[6].toString(16).padStart(2, '0'),
+    randomValues[7].toString(16).padStart(2, '0'),
+    randomValues[8].toString(16).padStart(2, '0'),
+    randomValues[9].toString(16).padStart(2, '0'),
+    randomValues[10].toString(16).padStart(2, '0'),
+    randomValues[11].toString(16).padStart(2, '0'),
+    randomValues[12].toString(16).padStart(2, '0'),
+    randomValues[13].toString(16).padStart(2, '0'),
+    randomValues[14].toString(16).padStart(2, '0'),
+    randomValues[15].toString(16).padStart(2, '0'),
+  ].join('').replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
 }
