@@ -1,0 +1,110 @@
+name: ⛅ CF Worker
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'wrangler env to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+        - dev
+        - prod
+        - one
+      commit:
+        description: 'git tip commit to deploy'
+        default: 'main'
+        required: true
+
+  push:
+    branches:
+      - "main"
+    tags:
+      - "v*"
+    paths-ignore:
+      - ".github/**"
+      - "!.github/workflows/cf.yml"
+      - ".env.example"
+      - ".eslintrc.cjs"
+      - ".prettierignore"
+      - "fly.toml"
+      - "README.md"
+      - "node.Dockerfile"
+      - "deno.Dockerfile"
+      - "import_map.json"
+      - ".vscode/*"
+      - ".husky/*"
+      - ".prettierrc.json"
+      - "LICENSE"
+      - "run"
+
+  schedule:
+    - cron: '0 10 * * 0'  # Runs every Sunday at 10:00 UTC
+
+env:
+  GIT_REF: ${{ github.event.inputs.commit || github.ref }}
+  WORKERS_ENV: ${{ github.event.inputs.environment || 'dev' }}
+
+jobs:
+  deploy:
+    name: 🚀 Deploy worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.3.0
+        with:
+          ref: ${{ env.GIT_REF }}
+          fetch-depth: 0
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Cek Versi Node.js
+        run: node -v
+
+      - name: 🏗 Install Dependencies (Tanpa Lock File)
+        run: npm install --no-package-lock
+
+      - name: ⚙️ Install Wrangler v4
+        run: npm install --global wrangler@4
+
+      - name: 🚦 Cek Versi Wrangler
+        run: npx wrangler -v
+
+      - name: 📚 Wrangler publish
+        run: npx wrangler deploy --env $WORKERS_ENV
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          GIT_COMMIT_ID: ${{ env.GIT_REF }}
+
+      - name: 🎤 Notice
+        run: |
+          echo "::notice::Deployed to ${WORKERS_ENV} / ${GIT_REF} @ ${GIT_COMMIT_ID}"
+
+  bot-action:
+    name: 🤖 Bot Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3.3.0
+        with:
+          ref: ${{ env.GIT_REF }}
+          fetch-depth: 0
+
+      - name: Set Git Config for Bot
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          
+      - name: Bot deploy to 'dev'
+        if: github.event_name == 'schedule'
+        run: |
+          echo "Deploying via bot action"
+          curl -X POST https://api.github.com/repos/${{ github.repository }}/dispatches \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -d '{"event_type":"deploy","client_payload":{"environment":"dev","commit":"main"}}'

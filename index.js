@@ -1,6 +1,6 @@
 import { connect } from "cloudflare:sockets";
 
-const proxyListURL = 'https://proxy.xhamster.biz.id/proxyList.txt';
+const proxyListURL = 'https://raw.githubusercontent.com/FoolVPN-ID/Nautica/refs/heads/main/proxyList.txt';
 const pagehost = '/'
 const namaWeb = 'FREE PROXY LIFETIME'
 
