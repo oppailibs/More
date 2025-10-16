@@ -54,7 +54,7 @@ export default {
           OppaiState.set(countryCode, Oppais[randomIndex]);
         }
 
-        console.log("oppai list updated:", Array.from(OppaiState.entries()));
+        //console.log("oppai list updated:", Array.from(OppaiState.entries()));
       }
 
       ctx.waitUntil(
