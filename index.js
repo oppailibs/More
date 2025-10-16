@@ -14,7 +14,7 @@ const WS_READY_STATE_CLOSING = 2;
 async function getOppaiList(forceReload = false) {
   if (!cachedOppaiList.length || forceReload) {
     if (!oppaiList) {
-      throw new Error("No Proxy List URL Provided!");
+      throw new Error("No oppai List URL Provided!");
     }
 
     const oppaiBank = await fetch(oppaiList);
@@ -54,7 +54,7 @@ export default {
           OppaiState.set(countryCode, Oppais[randomIndex]);
         }
 
-        console.log("Proxy list updated:", Array.from(OppaiState.entries()));
+        console.log("oppai list updated:", Array.from(OppaiState.entries()));
       }
 
       ctx.waitUntil(
@@ -65,8 +65,7 @@ export default {
       );
 
       if (upgradeHeader === "websocket") {
-        // Match path dengan format /Free-CF-Proxy/CC atau /Free-CF-Proxy/CCangka
-        const pathMatch = url.pathname.match(/^\/Free-CF-Proxy-([A-Z]{2})(\d+)?$/);
+        const pathMatch = url.pathname.match(/^\/Free-CF-Oppai-([A-Z]{2})(\d+)?$/);
         if (pathMatch) {
           const countryCode = pathMatch[1];
           const index = pathMatch[2] ? parseInt(pathMatch[2], 10) - 1 : null;
@@ -77,33 +76,33 @@ export default {
             return new Response(`No Oppai available for country: ${countryCode}`, { status: 404 });
           }
           // Lanjutkan proses koneksi WebSocket
-          let selectedProxy;
+          let selectedOppai;
 
           if (index === null) {
-            selectedProxy = OppaiState.get(countryCode) || filteredOppais[0];
+            selectedOppai = OppaiState.get(countryCode) || filteredOppais[0];
           } else if (index < 0 || index >= filteredOppais.length) {
-            return new Response(`Index ${index + 1} out of bounds. Only ${filteredOppais.length} proxies available for ${countryCode}.`,{ status: 400 }
+            return new Response(`Index ${index + 1} out of bounds. Only ${filteredOppais.length} oppais available for ${countryCode}.`,{ status: 400 }
             );
           } else {
-            selectedProxy = filteredOppais[index];
+            selectedOppai = filteredOppais[index];
           }
 
-          oppaiIP = `${selectedProxy.oppaiIP}:${selectedProxy.oppaiPort}`;
-          console.log(`Selected Proxy: ${oppaiIP}`);
+          oppaiIP = `${selectedOppai.oppaiIP}:${selectedOppai.oppaiPort}`;
+          console.log(`Selected oppai: ${oppaiIP}`);
           return await websockerHandler(request);
         }
 
         // Match path dengan format ip:port atau ip=port
-        const ipPortMatch = url.pathname.match(/^\/Free-CF-Proxy-(.+[:=-]\d+)$/);
+        const ipPortMatch = url.pathname.match(/^\/Free-CF-Oppai-(.+[:=-]\d+)$/);
 
         if (ipPortMatch) {
           oppaiIP = ipPortMatch[1].replace(/[=:-]/, ":"); // Standarisasi menjadi ip:port
-          console.log(`Direct Proxy IP: ${oppaiIP}`);
+          console.log(`Direct Oppai IP: ${oppaiIP}`);
           return await websockerHandler(request, oppaiIP);
         }
         
         switch(url.pathname){
-          case '/api/proxy':
+          case '/api/oppai':
             return new Response(JSON.stringify(OppaiState), {
               headers: { "Content-Type": "application/json" },
             });
