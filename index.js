@@ -81,7 +81,7 @@ export default {
           if (index === null) {
             selectedOppai = OppaiState.get(countryCode) || filteredOppais[0];
           } else if (index < 0 || index >= filteredOppais.length) {
-            return new Response(`Index ${index + 1} out of bounds. Only ${filteredOppais.length} oppais available for ${countryCode}.`,{ status: 400 }
+            return new Response(`Index ${index + 1} out of bounds. Only ${filteredOppais.length} oppaish available for ${countryCode}.`,{ status: 400 }
             );
           } else {
             selectedOppai = filteredOppais[index];

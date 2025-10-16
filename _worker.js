@@ -103,9 +103,7 @@ export default {
         
         switch(url.pathname){
           case '/api/oppai':
-            return new Response(JSON.stringify(OppaiState), {
-              headers: { "Content-Type": "application/json" },
-            });
+            return new Response("oppai");
             break;
         }
         return new Response("hello dunia!");
